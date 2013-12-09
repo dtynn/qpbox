@@ -1,6 +1,17 @@
 #coding=utf-8
 from qiniu import conf as qConf, rs as qRs, io as qIo, resumable_io as qRIo, rsf as qRsf
 import os
+import urllib
+
+
+def utilItem2Str(item):
+    rsKey = item['key'].encode('utf8')
+    rsHash = str(item['hash'])
+    #fsize = item['fsize']
+    #mimeType = str(item['mimeType'])
+    #putTime = item['putTime']
+    #return '%s %s %d %s %d' % (fkey, fhash, fsize, mimeType, putTime)
+    return '%s %s' % (rsKey, rsHash)
 
 
 class QBucketError(Exception):
@@ -9,11 +20,12 @@ class QBucketError(Exception):
 
 
 class QBucket(object):
-    def __init__(self, bucket, accessKey, secretKey):
-        if not (bucket and accessKey and secretKey):
+    def __init__(self, bucket, domain, accessKey, secretKey):
+        if not (bucket and domain and accessKey and secretKey):
             raise QBucketError('No accessKey or secretKey')
 
         self.bucket = bucket
+        self.domain = domain
         self.accessKey = accessKey
         self.secretKey = secretKey
         qConf.ACCESS_KEY = accessKey
@@ -25,15 +37,28 @@ class QBucket(object):
     def initialize(self):
         return
 
-    def fileListAll(self):
+    def listAll(self):
         client = qRsf.Client()
-        key_list = []
+        itemList = []
         marker = 'begin'
         while marker:
-            last_m = marker if marker != 'begin' else ''
-            ret, err = client.list_prefix(self.bucket, prefix='', limit=1000, marker=last_m)
-            #todo
+            current_m = marker if marker != 'begin' else ''
+            ret, err = client.list_prefix(self.bucket, prefix='', limit=1000, marker=current_m)
+            if err and err != 'EOF':
+                raise QBucketError('Error to get list use marker: %s' % (current_m,))
+            itemList += ret['items']
+            marker = ret.get('marker')
+        items = dict()
+        for i in itemList:
+            items[i['key'].encode('utf8')] = str(i['hash'])
+        return items
 
+    def getFile(self, key, localPath):
+        url = 'http://%s/%s' % (self.domain, urllib.quote(key))
+        try:
+            urllib.urlretrieve(url, localPath)
+        except Exception as e:
+            raise QBucketError(e)
         return
 
     def putFile(self, key, localFile, mimeType=None):
@@ -45,6 +70,5 @@ class QBucket(object):
 
         statInfo = os.stat(localFile)
         fsize = statInfo.st_size
-
         ret, err = qIo.put_file(uptoken, key, localFile, putExtra)
         return ret, err
