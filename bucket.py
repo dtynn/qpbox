@@ -1,5 +1,6 @@
 #coding=utf-8
 from qiniu import conf as qConf, rs as qRs, io as qIo, resumable_io as qRIo, rsf as qRsf
+import logging
 import os
 import urllib
 
@@ -16,13 +17,13 @@ def utilItem2Str(item):
 
 class QBucketError(Exception):
     def __init__(self, message=None):
-        Exception.__init__(self, "QBucket Error: %s" % (message,))
+        Exception.__init__(self, "%s" % (message,))
 
 
 class QBucket(object):
     def __init__(self, bucket, domain, accessKey, secretKey):
         if not (bucket and domain and accessKey and secretKey):
-            raise QBucketError('No accessKey or secretKey')
+            raise QBucketError('')
 
         self.bucket = bucket
         self.domain = domain
@@ -30,6 +31,8 @@ class QBucket(object):
         self.secretKey = secretKey
         qConf.ACCESS_KEY = accessKey
         qConf.SECRET_KEY = secretKey
+
+        self._urlopen = urllib.URLopener()
 
         self.initialize()
         return
@@ -55,10 +58,13 @@ class QBucket(object):
 
     def getFile(self, key, localPath):
         url = 'http://%s/%s' % (self.domain, urllib.quote(key))
+        logging.debug('downloading: %s' % (url,))
         try:
-            urllib.urlretrieve(url, localPath)
+            self._urlopen.retrieve(url, localPath)
+            logging.debug('downloaded: %s' % (url,))
         except Exception as e:
-            raise QBucketError(e)
+            logging.warning('failed to download: Domain:%s ; Key:%s ; Exception:%s'
+                            % (self.domain, key, e))
         return
 
     def putFile(self, key, localFile, mimeType=None):
