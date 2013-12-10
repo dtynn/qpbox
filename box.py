@@ -105,8 +105,7 @@ class QPBox(object):
 
     def syncFromCloud(self):
         diffItems = set(self.cloudGetList().items()) - set(self.localGetList().items())
-        diffKeys = map(lambda x: x[0], diffItems)
-        self.cloudGetFiles(diffKeys)
+        self.cloudGetFiles(diffItems)
         return
 
     def localGetList(self):
@@ -115,13 +114,13 @@ class QPBox(object):
     def cloudGetList(self):
         return self.qBucket.listAll()
 
-    def cloudGetFiles(self, keys):
-        logging.info('updating %d file(s)' % (len(keys),))
+    def cloudGetFiles(self, items):
+        logging.info('updating %d file(s)' % (len(items),))
         ignoredCt = 0
-        for key in keys:
-            fPath = self.utilMakeFIlePath(key)
+        for fKey, fHash in items:
+            fPath = self.utilMakeFIlePath(fKey)
             if fPath is not None:
-                self.qBucket.getFile(key, fPath)
+                self.qBucket.getFile(fKey, fPath)
             else:
                 ignoredCt += 1
         if ignoredCt > 0:
